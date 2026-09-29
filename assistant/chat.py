@@ -2,6 +2,17 @@ import os
 import sys
 from typing import Any
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
+# Ollama host fix for Windows: 0.0.0.0 is an invalid destination address for client sockets
+if os.environ.get("OLLAMA_HOST") in ("0.0.0.0", "0.0.0.0:11434"):
+    os.environ["OLLAMA_HOST"] = "127.0.0.1"
+
+import ollama as o
 from rich.console import Console, Group
 from rich.live import Live
 from rich.markdown import Markdown
@@ -14,16 +25,10 @@ from ollama_func import AVAILABLE_FUNCTIONS
 from ui.console import get_console
 from ui.panels import render_answer_panel, render_thinking_panel, show_goodbye, show_welcome
 
-import ollama as o
-
-# # Ollama host fix for Windows
-# if os.environ.get("OLLAMA_HOST") == "0.0.0.0":
-#     os.environ["OLLAMA_HOST"] = "127.0.0.1"
-
-
 console = get_console()
 
-ai_model = "gemma4"
+ai_model = os.environ.get("AI_MODEL", "laguna-xs-2.1")
+summ_model = os.environ.get("SUMM_MODEL", "phi4-mini-reasoning:latest")
 history: list[dict[str, Any]] = [build_system_prompt()]
 stream = True
 
@@ -107,8 +112,8 @@ def render_streaming_response(response, console_instance: Console) -> tuple[str,
                 if getattr(chunk.message, "tool_calls", None):
                     for tool in chunk.message.tool_calls:
                         if not any(
-                            t.function.name == tool.function.name and t.function.arguments == tool.function.arguments
-                            for t in tool_calls
+                                t.function.name == tool.function.name and t.function.arguments == tool.function.arguments
+                                for t in tool_calls
                         ):
                             tool_calls.append(tool)
 
@@ -167,15 +172,21 @@ def append_tool_result_to_history(history: list[dict[str, Any]], tool_name: str,
     history.append({"role": "tool", "name": tool_name, "content": str(output)})
 
 
+QUIT_COMMANDS = frozenset({"\\q", "bye", "exit", "quit"})
+
+
+def is_quit_command(user_text: str) -> bool:
+    return user_text.strip().lower() in QUIT_COMMANDS
+
+
 def usr_wants_quits(user_text: str):
-    checks = frozenset({"\\q", "bye"})
-    if user_text.lower() in checks:
+    if is_quit_command(user_text):
         raise KeyboardInterrupt("Good-bye!")
     return {"role": "user", "content": user_text}
 
 
 def run_chat_loop() -> None:
-    if not ensure_ollama_running(console):
+    if not ensure_ollama_running(console, ai_model):
         sys.exit(1)
 
     show_welcome(console)
@@ -189,47 +200,52 @@ def run_chat_loop() -> None:
             show_goodbye(console)
             break
 
-        command = user_input.strip().lower()
-
-        if command == "/options":
-            active_chat_options = configure_chat_options(active_chat_options or dict(DEFAULT_CHAT_OPTIONS), console)
+        user_input_trimmed = user_input.strip()
+        if not user_input_trimmed:
             continue
 
-        if command in {"/concise", "/compact"}:
-            active_chat_options = dict(CONCISE_CHAT_OPTIONS)
-            active_output_style = "concise"
-            console.print(
-                Panel(
-                    "[bold green]Compact reply mode enabled.[/]\n"
-                    "Future answers will stay short and TTS-friendly.",
-                    title="🗣️ Concise Mode",
-                    border_style="green",
-                    padding=(1, 2),
+        if user_input_trimmed.startswith("/"):
+            command = user_input_trimmed.lower()
+
+            if command == "/options":
+                active_chat_options = configure_chat_options(active_chat_options or dict(DEFAULT_CHAT_OPTIONS), console)
+                continue
+
+            if command in {"/concise", "/compact"}:
+                active_chat_options = dict(CONCISE_CHAT_OPTIONS)
+                active_output_style = "concise"
+                console.print(
+                    Panel(
+                        "[bold green]Compact reply mode enabled.[/]\n"
+                        "Future answers will stay short and TTS-friendly.",
+                        title="🗣️ Concise Mode",
+                        border_style="green",
+                        padding=(1, 2),
+                    )
                 )
-            )
-            continue
+                continue
 
-        if command == "/normal":
-            active_chat_options = None
-            active_output_style = "default"
-            console.print(
-                Panel(
-                    "[bold cyan]Normal reply mode enabled.[/]",
-                    title="🔄 Mode Reset",
-                    border_style="cyan",
-                    padding=(1, 2),
+            if command == "/normal":
+                active_chat_options = None
+                active_output_style = "default"
+                console.print(
+                    Panel(
+                        "[bold cyan]Normal reply mode enabled.[/]",
+                        title="🔄 Mode Reset",
+                        border_style="cyan",
+                        padding=(1, 2),
+                    )
                 )
-            )
+                continue
+
+            console.print("[bold red]Command not found.[/]")
             continue
 
-        try:
-            user_msg = usr_wants_quits(user_input)
-        except KeyboardInterrupt as e:
-            console.print(e)
+        if is_quit_command(user_input):
             show_goodbye(console)
             break
 
-        history.append(user_msg)
+        history.append({"role": "user", "content": user_input})
 
         while True:
             try:

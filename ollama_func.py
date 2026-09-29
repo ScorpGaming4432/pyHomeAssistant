@@ -660,5 +660,6 @@ __all__: list[str] = [
     "get_sunrise_sunset",
     "get_location_by_ip",
     "get_public_holidays",
+    "AVAILABLE_FUNCTIONS"
 ]
 # print(AVAILABLE_FUNCTIONS)

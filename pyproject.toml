@@ -1,0 +1,17 @@
+[project]
+name = "pyHomeAssistant"
+version = "0.1.0"
+description = "A local AI home assistant powered by Ollama and Rich"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "ollama>=0.4.0",
+    "rich>=13.0.0",
+    "mistune>=3.0.0",
+    "requests>=2.31.0",
+    "python-dotenv>=1.0.0",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

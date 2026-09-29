@@ -1,8 +1,12 @@
+import mistune
+import html
 from rich.traceback import install
+# from whisper import Whisper
 
 install(show_locals=True)
 
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -18,6 +22,12 @@ from rich.status import Status
 from rich.table import Table
 from rich import box
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 console = Console()
 
 # Ollama host fix for Windows
@@ -30,11 +40,138 @@ from ollama_func import AVAILABLE_FUNCTIONS
 # ----------------------------------------------------------------------
 # Utility functions
 # ----------------------------------------------------------------------
+class Renderer(mistune.BaseRenderer):
+    def render_children(self, children, state):
+        return "".join(self.render_token(child, state) for child in children)
+
+    def header(self, token, state):
+        return self.heading(token, state)
+
+    def heading(self, token, state):
+        text = self.render_children(token.get("children", []), state)
+        return f"<p><emphasis level=\"moderate\">{text}</emphasis></p>\n"
+
+    def emphasis(self, token, state):
+        text = self.render_children(token.get("children", []), state)
+        return f"<emphasis level=\"moderate\">{text}</emphasis>"
+
+    def strong(self, token, state):
+        text = self.render_children(token.get("children", []), state)
+        return f"<emphasis level=\"strong\">{text}</emphasis>"
+
+    def linebreak(self, token, state):
+        return "<break time=\"400ms\"/>\n"
+
+    def thematic_break(self, token, state):
+        return "<break time=\"600ms\"/>\n"
+
+    def image(self, token, state):
+        alt_text = token.get("alt") or token.get("text") or "image"
+        return f"image of {alt_text}"
+
+    def paragraph(self, token, state):
+        text = self.render_children(token.get("children", []), state)
+        return f"<p>{text}</p>\n"
+
+    def blank_line(self, token, state):
+        return ""
+
+    def list(self, token, state):
+        return self.render_children(token.get("children", []), state)
+
+    def list_item(self, token, state):
+        text = self.render_children(token.get("children", []), state)
+        return f"- {text}.\n"
+
+    def block_text(self, token, state):
+        return self.render_children(token.get("children", []), state)
+
+    def footnote_ref(self, token, state):
+        return token.get("key") or ""
+
+    def autolink(self, token, state):
+        return ""
+
+    def link(self, token, state):
+        return self.render_children(token.get("children", []), state)
+
+    def text(self, token, state):
+        return html.escape(token.get("raw", ""))
+
+    def block_code(self, token, state):
+        return f"<p>{self.text(token, state)}</p>\n"
+
+    def codespan(self, token, state):
+        return self.text(token, state)
+    
+    def softbreak(self, token, state):
+        return ".\n"
+
+
+def find_espeak_executable(configured_path: str | None = None) -> str | None:
+    if configured_path and os.path.exists(configured_path):
+        return configured_path
+    env_path = os.environ.get("ESPEAK_PATH")
+    if env_path and os.path.exists(env_path):
+        return env_path
+    which_path = shutil.which("espeak-ng") or shutil.which("espeak")
+    if which_path:
+        return which_path
+    for candidate in [
+        r"C:\Program Files\eSpeak NG\espeak-ng.exe",
+        r"C:\Program Files (x86)\eSpeak NG\espeak-ng.exe",
+        r"C:\Program Files\eSpeak\command_line\espeak.exe",
+    ]:
+        if os.path.exists(candidate):
+            return candidate
+    return None
+
+
+def play_tts(words: str | None = None, markdown: bool = True, path: str | None = None) -> bool:
+    if words is None:
+        text_to_speak = "\n".join(sys.stdin.readlines())
+    else:
+        text_to_speak = str(words)
+
+    if not text_to_speak.strip():
+        return False
+
+    exe_path = find_espeak_executable(path)
+    if not exe_path:
+        console.print("[dim red]eSpeak executable not found on system.[/]")
+        return False
+
+    if markdown:
+        renderer = Renderer()
+        try:
+            md = mistune.create_markdown(renderer=renderer)
+        except AttributeError:
+            md = mistune.Markdown(renderer=renderer)
+        out_text = md(text_to_speak)
+    else:
+        out_text = html.escape(text_to_speak)
+
+    ssml = f"<speak>{out_text}</speak>"
+
+    try:
+        proc = subprocess.run(
+            [exe_path, "-v", "en-us", "-m", "-b", "1"],
+            input=ssml.encode("utf-8"),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0,
+        )
+        return proc.returncode == 0
+    except Exception:
+        return False
+        
 
 def ensure_ollama_running() -> bool:
     try:
         console.print("[grey]Checking if Ollama server is working...[/]")
         o.list()
+        # o.chat(summ_model, keep_alive=500.0)
+        o.chat(ai_model, keep_alive=500.0)
         return True
     except Exception:
         console.print("[bright_red]Ollama server [bold red3]not[/bold red3] detected[/]")
@@ -78,9 +215,32 @@ def ensure_ollama_running() -> bool:
         )
         return False
 
+_WHISPER_MODEL = None
+
+
+def ensure_whisper():
+    global _WHISPER_MODEL
+    if _WHISPER_MODEL is not None:
+        return _WHISPER_MODEL
+    try:
+        import whisper
+        with console.status("[bold yellow]Loading Whisper model (medium.en)...[/]"):
+            _WHISPER_MODEL = whisper.load_model("medium.en")
+        return _WHISPER_MODEL
+    except Exception as e:
+        console.print(f"[dim red]Failed to load Whisper: {e}[/]")
+        return None
+
+
+QUIT_COMMANDS = frozenset({'\\q', 'bye', 'exit', 'quit'})
+
+
+def is_quit_command(user_text: str) -> bool:
+    return user_text.strip().lower() in QUIT_COMMANDS
+
+
 def usr_wants_quits(user_text: str):
-    checks = frozenset({'\\q', 'bye'})
-    if user_text.lower() in checks:
+    if is_quit_command(user_text):
         raise KeyboardInterrupt('Good-bye!')
     return {'role': 'user', 'content': user_text}
 
@@ -109,11 +269,10 @@ def show_goodbye():
 # System prompt and model setup
 # ----------------------------------------------------------------------
 debug_environment_info_system = {
-    'user': 'Dorpiee',
-    'pref_pronouns': 'they/them',
-    'lang_dependant_pronouns': 'she/her',
-    'location': 'Chełm, Lubelskie, Poland',
-    
+    'user': os.environ.get('ASSISTANT_USER_NAME', 'User'),
+    'pref_pronouns': os.environ.get('ASSISTANT_USER_PRONOUNS', 'they/them'),
+    'lang_dependant_pronouns': os.environ.get('ASSISTANT_LANG_PRONOUNS', 'she/her'),
+    'location': os.environ.get('ASSISTANT_USER_LOCATION', 'Unknown location'),
 }
 
 system_prompt = {
@@ -126,13 +285,12 @@ When your safeguard catches a guideline violation, provide the best shortest ans
 Use the internet to fetch up-to-date information. Summarize the found content in concise language and highlight key findings. Present short balanced viewpoints on complex topics.
 Use in-built functions when possible.
 This is a debugging environment. Additional information about your environment include:
-- User name: {debug_environment_info_system['user']} ({debug_environment_info_system['pref_pronouns']}),
-- Location information: {debug_environment_info_system['location']}
+- User name: {debug_environment_info_system['user']} ({debug_environment_info_system['pref_pronouns']})
 Past this line additional instructions may follow.""",
 }
 
-# ai_model = 'gemma4'
-ai_model = 'laguna-xs-2.1'
+ai_model = os.environ.get('AI_MODEL', 'laguna-xs-2.1')
+summ_model = os.environ.get('SUMM_MODEL', 'phi4-mini-reasoning:latest')
 history: list[dict[str, Any]] = [system_prompt]
 stream = True   # keep streaming enabled for live updates
 DEFAULT_CHAT_OPTIONS = {
@@ -323,50 +481,88 @@ def run_chat_loop() -> None:
             show_goodbye()
             break
 
-        command = user_input.strip().lower()
-
-        if command == '/options':
-            active_chat_options = configure_chat_options(
-                active_chat_options or dict(DEFAULT_CHAT_OPTIONS),
-                console,
-            )
+            
+        user_input_trimmed = user_input.strip()
+        if not user_input_trimmed:
             continue
 
-        if command in {'/concise', '/compact'}:
-            active_chat_options = dict(CONCISE_CHAT_OPTIONS)
-            active_output_style = 'concise'
-            console.print(
-                Panel(
-                    "[bold green]Compact reply mode enabled.[/]\n"
-                    "Future answers will stay short and TTS-friendly.",
-                    title="🗣️ Concise Mode",
-                    border_style='green',
-                    padding=(1, 2),
+        if user_input_trimmed.startswith('/'):
+            command = user_input_trimmed.lower()
+
+            if command == '/options':
+                active_chat_options = configure_chat_options(
+                    active_chat_options or dict(DEFAULT_CHAT_OPTIONS),
+                    console,
                 )
-            )
-            continue
+                continue
 
-        if command == '/normal':
-            active_chat_options = None
-            active_output_style = 'default'
-            console.print(
-                Panel(
-                    "[bold cyan]Normal reply mode enabled.[/]",
-                    title="🔄 Mode Reset",
-                    border_style='cyan',
-                    padding=(1, 2),
+            elif command in {'/concise', '/compact'}:
+                active_chat_options = dict(CONCISE_CHAT_OPTIONS)
+                active_output_style = 'concise'
+                console.print(
+                    Panel(
+                        "[bold green]Compact reply mode enabled.[/]\n"
+                        "Future answers will stay short and TTS-friendly.",
+                        title="🗣️ Concise Mode",
+                        border_style='green',
+                        padding=(1, 2),
+                    )
                 )
-            )
-            continue
+                continue
 
-        try:
-            user_msg = usr_wants_quits(user_input)
-        except KeyboardInterrupt as e:
-            console.print(e)
+            elif command == '/normal':
+                active_chat_options = None
+                active_output_style = 'default'
+                console.print(
+                    Panel(
+                        "[bold cyan]Normal reply mode enabled.[/]",
+                        title="🔄 Mode Reset",
+                        border_style='cyan',
+                        padding=(1, 2),
+                    )
+                )
+                continue
+
+            elif command == '/stt':
+                whisper_model = ensure_whisper()
+                if not whisper_model:
+                    console.print("[red]Unable to load Whisper model.[/]")
+                    continue
+
+                recorder = ".\\audio_device.exe" if os.path.exists(".\\audio_device.exe") else "audio_device.exe"
+                if not os.path.exists(recorder):
+                    console.print("[bold red]Recording executable (audio_device.exe) not found.[/]")
+                    continue
+
+                console.print("[bold cyan]Whisper engaged! Recording...[/]")
+                subprocess.call([recorder])
+
+                if not os.path.exists("input.wav"):
+                    console.print("[bold red]Recording file 'input.wav' was not created.[/]")
+                    continue
+
+                try:
+                    transcription = whisper_model.transcribe("input.wav").get('text', '').strip()
+                except Exception as e:
+                    console.print(f"[bold red]Transcription failed: {e}[/]")
+                    continue
+
+                if not transcription:
+                    console.print("[yellow]No speech detected in recording.[/]")
+                    continue
+
+                user_input = transcription
+                console.print(f"[cyan]<<< : [/]{user_input}")
+
+            else:
+                console.print("[bold red]Command not found.[/]")
+                continue
+
+        if is_quit_command(user_input):
             show_goodbye()
             break
 
-        history.append(user_msg)
+        history.append({'role': 'user', 'content': user_input})
 
         while True:
             try:
@@ -430,6 +626,8 @@ def run_chat_loop() -> None:
                 console.print("[dim]----- Sending result back to model -----[/]\n")
                 continue
             break
+        console.print("[cyan]Playing back the content...[/]" if play_tts(words=history[-1]['content'], markdown=True) else "[red]Something went wrong inside tts![/]")
+        
 
 
 if __name__ == "__main__":

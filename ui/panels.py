@@ -16,7 +16,7 @@ def show_welcome(console) -> None:
 
 
 def show_goodbye(console) -> None:
-    console.print(
+    console.print('\n',
         Panel(
             "[bold green]👋 Thanks for chatting! Have a great day.[/]",
             border_style="green",

@@ -1,0 +1,13 @@
+ollama>=0.4.0
+rich>=13.0.0
+mistune>=3.0.0
+requests>=2.31.0
+python-dotenv>=1.0.0
+
+# Testing
+pytest>=8.0.0
+
+# Optional voice dependencies:
+# openai-whisper
+# pyaudio
+# webrtcvad
