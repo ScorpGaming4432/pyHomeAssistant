@@ -29,15 +29,16 @@ clang++ -std=C++17 ./mic-wav/audio_device.cpp ./mic-wav/wav.cpp -o audio_device
 * [x] Windows 11
 * [ ] Windows 10
 * [ ] Windows 8
-* [ ] Windows >7
+* [ ] Windows <=7
 
-### Linux* [ ] Ubuntu 22.04
+### Linux 
 
-* [ ] Ubuntu 20.04
-* [ ] Debian 12
-* [ ] Debian 11
-* [ ] Fedora 38
-* [ ] Fedora 37
+* [ ] Ubuntu 26.04 LTS
+* [ ] Ubuntu Nightly (whatever it is now)
+* [ ] Debian 13
+* [ ] Debian <=12
+* [ ] Fedora 44
+* [ ] Fedora <=43
 * [ ] Arch Linux
 
 ### MacOS
@@ -61,3 +62,10 @@ clang++ -std=C++17 ./mic-wav/audio_device.cpp ./mic-wav/wav.cpp -o audio_device
 * whisper
 * eSpeakNG
 * mistune
+
+## Known Issues
+ [**Issues**](https://github.com/ScorpGaming4432/pyHomeAssistant/issues)
+
+## Licence
+
+As long as I'm somehow credited you can do whatever. Respect to the incredible devs behind any of my deps. Love yall.
