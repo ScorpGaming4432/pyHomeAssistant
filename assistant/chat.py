@@ -23,7 +23,22 @@ from assistant.ollama import ensure_ollama_running
 from assistant.state import build_chat_request_kwargs, build_system_prompt
 from ollama_func import AVAILABLE_FUNCTIONS
 from ui.console import get_console
-from ui.panels import render_answer_panel, render_thinking_panel, show_goodbye, show_welcome
+from ui.panels import (
+    ANSWER_STYLE,
+    CONCISE_MODE_STYLE,
+    NORMAL_MODE_STYLE,
+    SETTINGS_STYLE,
+    SETTINGS_SAVED_STYLE,
+    STREAMING_RESPONSE_STYLE,
+    THINKING_STYLE,
+    TOOL_CALL_STYLE,
+    TOOL_ERROR_STYLE,
+    TOOL_OUTPUT_STYLE,
+    render_answer_panel,
+    render_thinking_panel,
+    show_goodbye,
+    show_welcome,
+)
 
 console = get_console()
 
@@ -74,7 +89,7 @@ def configure_chat_options(current_options: dict[str, Any], console_instance: Co
             "[bold cyan]Adjust the model settings below.[/]\n"
             "Press Enter to keep the current value.",
             title="⚙️ AI Options",
-            border_style="cyan",
+            border_style=SETTINGS_STYLE,
             padding=(1, 2),
         )
     )
@@ -89,7 +104,7 @@ def configure_chat_options(current_options: dict[str, Any], console_instance: Co
             "[bold green]AI settings updated.[/]\n"
             + "\n".join(f"{name}: {updated_options[name]}" for name in OPTION_ORDER),
             title="✅ Options Saved",
-            border_style="green",
+            border_style=SETTINGS_SAVED_STYLE,
             padding=(1, 2),
         )
     )
@@ -123,7 +138,7 @@ def render_streaming_response(response, console_instance: Console) -> tuple[str,
                         Panel(
                             "".join(thinking_parts),
                             title="🧠 Thinking",
-                            border_style="bright_black",
+                            border_style=THINKING_STYLE,
                             padding=(0, 1),
                         )
                     )
@@ -132,7 +147,7 @@ def render_streaming_response(response, console_instance: Console) -> tuple[str,
                         Panel(
                             "".join(content_parts),
                             title="💬 Response (streaming)",
-                            border_style="cyan",
+                            border_style=STREAMING_RESPONSE_STYLE,
                             padding=(0, 1),
                         )
                     )
@@ -146,7 +161,7 @@ def render_streaming_response(response, console_instance: Console) -> tuple[str,
                     Panel(
                         Markdown(full_content),
                         title="💬 Answer",
-                        border_style="green",
+                        border_style=ANSWER_STYLE,
                         padding=(1, 2),
                     ),
                     refresh=True,
@@ -219,7 +234,7 @@ def run_chat_loop() -> None:
                         "[bold green]Compact reply mode enabled.[/]\n"
                         "Future answers will stay short and TTS-friendly.",
                         title="🗣️ Concise Mode",
-                        border_style="green",
+                        border_style=CONCISE_MODE_STYLE,
                         padding=(1, 2),
                     )
                 )
@@ -232,7 +247,7 @@ def run_chat_loop() -> None:
                     Panel(
                         "[bold cyan]Normal reply mode enabled.[/]",
                         title="🔄 Mode Reset",
-                        border_style="cyan",
+                        border_style=NORMAL_MODE_STYLE,
                         padding=(1, 2),
                     )
                 )
@@ -286,7 +301,7 @@ def run_chat_loop() -> None:
                             Panel(
                                 f"[bold]{tool.function.name}[/]\n[dim]Arguments: {tool.function.arguments}[/]",
                                 title="🔧 Calling Function",
-                                border_style="magenta",
+                                border_style=TOOL_CALL_STYLE,
                             )
                         )
                         try:
@@ -296,7 +311,7 @@ def run_chat_loop() -> None:
                                 Panel(
                                     f"[green]{output}[/]",
                                     title="✅ Output",
-                                    border_style="green",
+                                    border_style=TOOL_OUTPUT_STYLE,
                                 )
                             )
                         except Exception as e:
@@ -305,7 +320,7 @@ def run_chat_loop() -> None:
                                 Panel(
                                     f"[red1]{output}[/]",
                                     title="❌ Error",
-                                    border_style="red",
+                                    border_style=TOOL_ERROR_STYLE,
                                 )
                             )
                         append_tool_result_to_history(history, tool.function.name, output)

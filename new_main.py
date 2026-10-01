@@ -168,7 +168,7 @@ def play_tts(words: str | None = None, markdown: bool = True, path: str | None =
 
 def ensure_ollama_running() -> bool:
     try:
-        console.print("[grey]Checking if Ollama server is working...[/]")
+        console.print("[cyan]Checking if Ollama server is working...[/]")
         o.list()
         # o.chat(summ_model, keep_alive=500.0)
         o.chat(ai_model, keep_alive=500.0)
@@ -239,17 +239,18 @@ def is_quit_command(user_text: str) -> bool:
     return user_text.strip().lower() in QUIT_COMMANDS
 
 
-def usr_wants_quits(user_text: str):
-    if is_quit_command(user_text):
-        raise KeyboardInterrupt('Good-bye!')
-    return {'role': 'user', 'content': user_text}
+# def usr_wants_quits(user_text: str):
+#     if is_quit_command(user_text):
+#         raise KeyboardInterrupt('Good-bye!')
+#     return {'role': 'user', 'content': user_text}
 
 def show_welcome():
     welcome = Panel(
         "[bold cyan]🤖 Dozo Assistant[/]\n"
         "Your knowledgeable, helpful AI companion.\n\n"
-        "Type [yellow]\\q[/] or [yellow]bye[/] to exit.\n"
-        "Use [yellow]/options[/] to tweak the AI settings, or [yellow]/concise[/] for compact replies.",
+        "Type [bright_yellow]\\q[/] or [bright_yellow]bye[/] to exit.\n"
+        "Use [bright_yellow]/options[/] to tweak the AI settings, or [bright_yellow]/concise[/] for compact replies.\n"
+        "To use microphone input, type [bright_yellow]/stt[/] [bright_black](it might be useful with the [yellow]/concise[/] option)[/]",
         title="Welcome",
         border_style='blue',
         padding=(1, 2)
@@ -257,7 +258,8 @@ def show_welcome():
     console.print(welcome)
 
 def show_goodbye():
-    console.print(
+    
+    console.print("\n",
         Panel(
             "[bold green]👋 Thanks for chatting! Have a great day.[/]",
             border_style='green',
@@ -478,6 +480,7 @@ def run_chat_loop() -> None:
         try:
             user_input = Prompt.ask("[bold cyan]>>> [/ ]", console=console)
         except (KeyboardInterrupt, EOFError):
+            console.print("exit")
             show_goodbye()
             break
 
@@ -618,7 +621,7 @@ def run_chat_loop() -> None:
                                     border_style="red",
                                 )
                             )
-                        append_tool_result_to_history(history, tool.function.name, output)
+                        append_tool_result_to_history(history, tool.function.name, str(output))
                     else:
                         err_msg = f"Function {tool.function.name} not found"
                         console.print(f"[red1]{err_msg}[/]")
@@ -626,7 +629,8 @@ def run_chat_loop() -> None:
                 console.print("[dim]----- Sending result back to model -----[/]\n")
                 continue
             break
-        console.print("[cyan]Playing back the content...[/]" if play_tts(words=history[-1]['content'], markdown=True) else "[red]Something went wrong inside tts![/]")
+        console.print("[cyan]Playing back the content...[/]")
+        if not play_tts(words=history[-1]['content'], markdown=True): console.print("[red]Something went wrong inside tts![/]")
         
 
 

@@ -15,6 +15,8 @@ if os.environ.get("OLLAMA_HOST") in ("0.0.0.0", "0.0.0.0:11434"):
 import ollama as o
 from rich.panel import Panel
 
+from ui.panels import CONNECTION_ERROR_STYLE, DEPENDENCY_ERROR_STYLE
+
 
 def ensure_ollama_running(console, model: str | None = None) -> bool:
     try:
@@ -50,7 +52,7 @@ def ensure_ollama_running(console, model: str | None = None) -> bool:
                     "[bold red1]Error: 'ollama' executable not found.[/]\n"
                     "Please install Ollama from [link]https://ollama.com[/link] and add it to your PATH.",
                     title="Missing Dependency",
-                    border_style='red'
+                    border_style=DEPENDENCY_ERROR_STYLE
                 )
             )
             return False
@@ -62,7 +64,7 @@ def ensure_ollama_running(console, model: str | None = None) -> bool:
                 "[bold red1]Could not connect to Ollama server.[/]\n"
                 "Please start it manually (e.g., run 'ollama serve' or open the Ollama app).",
                 title="Connection Error",
-                border_style='red'
+                border_style=CONNECTION_ERROR_STYLE
             )
         )
         return False
