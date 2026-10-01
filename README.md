@@ -4,7 +4,7 @@
 
 This is a local project using open source solutions for a terminal Home Assistant app.
 
-> (don't look at the `Languages`, it's just Python dev at its fullest)
+> (don't look at the `Languages` in the right column on Github, it's just Python dev at its fullest)
 
 ## Usage / Installation
 
